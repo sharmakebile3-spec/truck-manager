@@ -6,7 +6,7 @@ Fleet &amp; cross-border trip management console — trucks, trips, checkpoints,
 
 1. Go to the [Firebase console](https://console.firebase.google.com/) → create a project (or use an existing one).
 2. **Authentication** → Sign-in method → enable **Email/Password**.
-   (The app lets users sign up with just a username + password — internally it stores the username as `username@truckmanager.local` so Firebase Auth's email requirement is satisfied. Users never see or type an email.)
+   (The app signs users up with their real email + password, so Firebase's built-in "Forgot password" reset email works out of the box.)
 3. **Firestore Database** → Create database → start in production mode.
 4. Firestore → Rules tab → paste the contents of [`firestore.rules`](firestore.rules) from this repo → Publish.
    This restricts every user to only read/write their own data at `users/{uid}/...`.

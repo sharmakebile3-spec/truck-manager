@@ -1,8 +1,9 @@
 import {
   trucksRef, tripsRef, expensesRef, paymentsRef,
   listenCollection, addDocWithId, updateDocById, deleteDocById,
-  nextTripSequence, listenTripCounter
+  nextTripSequence, listenTripCounter, updateDisplayName
 } from './firebase.js';
+import { getTheme, applyTheme } from './theme.js';
 
 /* =========================================================
    DATA MODEL (populated live from Firestore, see initApp)
@@ -33,7 +34,8 @@ const UI = {
   expenseEditId:null,
   paymentFilter:'all', viewInvoiceTripId:null,
   paymentForm:{tripId:null, amount:'', note:''},
-  reportTab:'fleet'
+  reportTab:'fleet',
+  settingsDisplayName:'', settingsSaved:false
 };
 
 const CHECKPOINT_STATUSES = ['Departed','Arrived at Border','In Customs Clearance','Border Cleared','In Transit','Delayed / Issue','Delivered'];
@@ -245,7 +247,8 @@ const NAV_ITEMS = [
   {key:'fleet', label:'Fleet Management', icon:'<rect x="1" y="7" width="14" height="9"/><path d="M15 11h4l3 3v2h-7"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>'},
   {key:'trips', label:'Trip Management', icon:'<path d="M9 5H5a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-4"/><path d="M9 3h6v4H9z"/>'},
   {key:'payments', label:'Payments & Invoices', icon:'<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>'},
-  {key:'reports', label:'Reports', icon:'<path d="M3 3v18h18"/><path d="M7 15l4-6 4 4 5-8"/>'}
+  {key:'reports', label:'Reports', icon:'<path d="M3 3v18h18"/><path d="M7 15l4-6 4 4 5-8"/>'},
+  {key:'settings', label:'Settings', icon:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>'}
 ];
 function renderNav(){
   document.getElementById('navList').innerHTML = NAV_ITEMS.map(n=>`
@@ -254,7 +257,13 @@ function renderNav(){
       ${n.label}
     </div>`).join('');
 }
-function setRoute(route){ UI.route = route; if(route!=='profile') UI.profileTruckId=null; UI.expandedTripId=null; render(); }
+function setRoute(route){
+  UI.route = route;
+  if(route!=='profile') UI.profileTruckId=null;
+  UI.expandedTripId=null;
+  if(route==='settings' && currentUser) UI.settingsDisplayName = currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : '');
+  render();
+}
 function openProfile(id){ UI.route='profile'; UI.profileTruckId=id; UI.profileTab='current'; render(); }
 function setProfileTab(tab){ UI.profileTab=tab; render(); }
 
@@ -275,6 +284,7 @@ function render(){
   else if(UI.route==='profile') app.innerHTML = renderProfile();
   else if(UI.route==='payments') app.innerHTML = renderPayments();
   else if(UI.route==='reports') app.innerHTML = renderReports();
+  else if(UI.route==='settings') app.innerHTML = renderSettings();
 
   const overlay = document.getElementById('invoice-overlay');
   if(overlay){
@@ -1322,12 +1332,71 @@ function renderPaymentsReport(){
 }
 
 /* =========================================================
+   SETTINGS
+========================================================= */
+async function saveDisplayName(){
+  const name = UI.settingsDisplayName.trim();
+  if(!name){ alert('Please enter a display name.'); return; }
+  await updateDisplayName(currentUser, name);
+  currentUser.displayName = name;
+  document.getElementById('topbarUserName').textContent = name;
+  document.getElementById('topAvatar').textContent = name.slice(0,2).toUpperCase();
+  UI.settingsSaved = true;
+  render();
+}
+function setTheme(theme){
+  applyTheme(theme);
+  render();
+}
+
+function renderSettings(){
+  const email = currentUser.email || '—';
+  const theme = getTheme();
+  return `
+    <div class="page-head">
+      <div><h1>Settings</h1><div class="sub">Manage your profile and appearance preferences</div></div>
+    </div>
+
+    <div class="form-card" style="max-width:560px;">
+      <h3>Profile</h3>
+      <div class="form-hint">Your login email can't be changed here. Your display name is what teammates see in the app.</div>
+      <div class="field" style="margin-bottom:16px;max-width:320px;">
+        <label>Email (login)</label>
+        <input value="${esc(email)}" disabled>
+      </div>
+      <div class="field" style="margin-bottom:8px;max-width:280px;">
+        <label>Display Name</label>
+        <input value="${esc(UI.settingsDisplayName)}" oninput="UI.settingsDisplayName=this.value; UI.settingsSaved=false;" placeholder="e.g. Ops Manager">
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;margin-top:14px;">
+        <button class="btn btn-primary btn-sm" onclick="saveDisplayName()">Save Changes</button>
+        ${UI.settingsSaved ? '<span style="font-size:12.5px;color:var(--green);font-weight:600;">Saved ✓</span>' : ''}
+      </div>
+    </div>
+
+    <div class="form-card" style="max-width:560px;">
+      <h3>Appearance</h3>
+      <div class="form-hint">Choose how TruckManager looks on this device.</div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn ${theme==='light'?'btn-primary':'btn-ghost'} btn-sm" onclick="setTheme('light')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          Light
+        </button>
+        <button class="btn ${theme==='dark'?'btn-primary':'btn-ghost'} btn-sm" onclick="setTheme('dark')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          Dark
+        </button>
+      </div>
+    </div>`;
+}
+
+/* =========================================================
    APP LIFECYCLE (called from main.js on auth state changes)
 ========================================================= */
 export function initApp(user){
   currentUser = user;
   const displayName = user.displayName || (user.email ? user.email.split('@')[0] : 'User');
-  document.getElementById('sidebarUser').textContent = displayName;
+  document.getElementById('topbarUserName').textContent = displayName;
   document.getElementById('topAvatar').textContent = displayName.slice(0,2).toUpperCase();
 
   DB.trucks = []; DB.trips = []; DB.expenses = []; DB.payments = [];
@@ -1357,5 +1426,6 @@ Object.assign(window, {
   updateTripsSearch, setTripsFilter, toggleTripExpand, editCheckpoint, deleteCheckpoint, onCheckpointStatusChange,
   submitCheckpoint, cancelCheckpointEdit, onExpenseCategoryChange, submitExpense, editExpense, deleteExpense, cancelExpenseEdit,
   exportFleetCSV, exportTripsCSV, exportPaymentsCSV, setPaymentFilter, openInvoice, closeInvoice, printInvoice,
-  setPaymentStatus, deletePaymentEntry, submitPaymentEntry, setReportTab
+  setPaymentStatus, deletePaymentEntry, submitPaymentEntry, setReportTab,
+  saveDisplayName, setTheme
 });

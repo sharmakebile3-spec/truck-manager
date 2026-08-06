@@ -19,15 +19,17 @@
       <div><div class="name">TruckManager</div><div class="tag">Fleet &amp; Cross-Border Ops</div></div>
     </div>
     <div class="nav" id="navList"></div>
-    <div class="sidebar-foot" id="sidebarFoot">Signed in as<br><b id="sidebarUser">—</b><br>All figures shown in USD ($)
+    <div class="sidebar-foot" id="sidebarFoot">All figures shown in USD ($)
       <div><button class="logout-btn" id="logoutBtn">Log Out</button></div>
     </div>
   </div>
 
   <div class="main">
     <div class="topbar">
-      <span class="tb-label"><span class="pulse"></span>Live — synced to your Firebase account</span>
-      <div class="avatar" id="topAvatar">—</div>
+      <div class="topbar-profile" onclick="setRoute('settings')" title="Settings">
+        <span class="topbar-username" id="topbarUserName">—</span>
+        <div class="avatar" id="topAvatar">—</div>
+      </div>
     </div>
     <div class="view" id="app"></div>
   </div>

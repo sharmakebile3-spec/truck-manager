@@ -3,6 +3,7 @@ import {
   getAuth,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
   signOut,
   onAuthStateChanged,
   updateProfile
@@ -36,31 +37,28 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 
 /* =========================================================
-   USERNAME-BASED AUTH
-   Firebase Auth needs an email, so a username like "jsmith"
-   is stored internally as jsmith@truckmanager.local. The user
-   never sees or types an email.
+   EMAIL-BASED AUTH
 ========================================================= */
-const USERNAME_DOMAIN = '@truckmanager.local';
-function usernameToEmail(username) {
-  return username.trim().toLowerCase().replace(/\s+/g, '') + USERNAME_DOMAIN;
-}
-
-export async function signUp(username, password) {
-  const email = usernameToEmail(username);
-  const cred = await createUserWithEmailAndPassword(auth, email, password);
-  await updateProfile(cred.user, { displayName: username.trim() });
+export async function signUp(email, password) {
+  const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
   return cred.user;
 }
 
-export async function logIn(username, password) {
-  const email = usernameToEmail(username);
-  const cred = await signInWithEmailAndPassword(auth, email, password);
+export async function logIn(email, password) {
+  const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
   return cred.user;
+}
+
+export function resetPassword(email) {
+  return sendPasswordResetEmail(auth, email.trim());
 }
 
 export function logOut() {
   return signOut(auth);
+}
+
+export function updateDisplayName(user, displayName) {
+  return updateProfile(user, { displayName: displayName.trim() });
 }
 
 export function watchAuth(callback) {
@@ -70,12 +68,12 @@ export function watchAuth(callback) {
 export function friendlyAuthError(err) {
   const code = err && err.code;
   switch (code) {
-    case 'auth/email-already-in-use': return 'That username is already taken. Try a different one.';
-    case 'auth/invalid-email': return 'Please enter a valid username (letters and numbers only).';
+    case 'auth/email-already-in-use': return 'An account with that email already exists. Try logging in instead.';
+    case 'auth/invalid-email': return 'Please enter a valid email address.';
     case 'auth/weak-password': return 'Password must be at least 6 characters.';
     case 'auth/invalid-credential':
-    case 'auth/wrong-password': return 'Incorrect username or password.';
-    case 'auth/user-not-found': return 'No account found with that username. Check it or sign up instead.';
+    case 'auth/wrong-password': return 'Incorrect email or password.';
+    case 'auth/user-not-found': return 'No account found with that email. Check it or sign up instead.';
     case 'auth/too-many-requests': return 'Too many failed attempts — please try again in a moment.';
     default: return 'Something went wrong: ' + (err && err.message ? err.message : String(err));
   }

@@ -1,97 +1,113 @@
-import { signUp, logIn, friendlyAuthError } from './firebase.js';
+import { signUp, logIn, resetPassword, friendlyAuthError } from './firebase.js';
 
-const authState = { mode: 'login', error: '', busy: false };
+const authState = { mode: 'login', error: '', info: '', busy: false };
 
 export function renderAuthScreen() {
   const root = document.getElementById('auth-root');
-  const isLogin = authState.mode === 'login';
+  const mode = authState.mode;
+  const isLogin = mode === 'login';
+  const isReset = mode === 'reset';
+
+  const heading = isReset ? 'Reset your password' : isLogin ? 'Welcome back' : 'Create your account';
+  const sub = isReset
+    ? "Enter your email and we'll send you a link to reset your password."
+    : isLogin ? 'Sign in with your email and password.' : 'Sign up with your email and password.';
+
   root.innerHTML = `
     <div class="auth-shell">
-      <div class="auth-visual">
-        <div class="auth-visual-inner">
-          <div class="brand-mark">TM</div>
-          <h1>Run your fleet with total visibility.</h1>
-          <p class="lede">TruckManager keeps every truck, trip, and invoice in one place — synced live across your team.</p>
-          <div class="auth-feature-list">
-            <div class="auth-feature">
-              <div class="dot">&#10003;</div>
-              <div class="txt"><b>Live fleet &amp; trip tracking</b><span>See truck status and border checkpoints update in real time.</span></div>
-            </div>
-            <div class="auth-feature">
-              <div class="dot">&#10003;</div>
-              <div class="txt"><b>Expenses &amp; profit per trip</b><span>Log fuel and dispatch costs, see net profit instantly.</span></div>
-            </div>
-            <div class="auth-feature">
-              <div class="dot">&#10003;</div>
-              <div class="txt"><b>Payments &amp; invoices</b><span>Track what's collected and print client invoices in one click.</span></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="auth-form-side">
       <div class="auth-card">
         <div class="auth-card-brand">
           <div class="brand-mark">TM</div>
           <div><div class="name">TruckManager</div><div class="tag">Fleet &amp; Cross-Border Ops</div></div>
         </div>
-        <h2>${isLogin ? 'Welcome back' : 'Create your account'}</h2>
-        <div class="auth-sub">${isLogin ? 'Sign in with your username and password.' : 'Choose a username and password to get started.'}</div>
+        <h2>${heading}</h2>
+        <div class="auth-sub">${sub}</div>
         ${authState.error ? `<div class="auth-error">${authState.error}</div>` : ''}
+        ${authState.info ? `<div class="auth-info">${authState.info}</div>` : ''}
         <form id="authForm">
           <div class="auth-field">
-            <label>Username</label>
-            <input id="authUsername" autocomplete="username" placeholder="e.g. opsmanager" required>
+            <label>Email</label>
+            <input id="authEmail" type="email" autocomplete="email" required>
           </div>
+          ${!isReset ? `
           <div class="auth-field">
             <label>Password</label>
-            <input id="authPassword" type="password" autocomplete="${isLogin ? 'current-password' : 'new-password'}" placeholder="At least 6 characters" required>
-          </div>
+            <input id="authPassword" type="password" autocomplete="${isLogin ? 'current-password' : 'new-password'}" required>
+          </div>` : ''}
+          ${isLogin ? `<div class="auth-forgot"><button type="button" id="authForgot">Forgot password?</button></div>` : ''}
           <button class="btn btn-primary auth-submit" type="submit" ${authState.busy ? 'disabled' : ''}>
-            ${authState.busy ? 'Please wait…' : (isLogin ? 'Log In' : 'Sign Up')}
+            ${authState.busy ? 'Please wait…' : (isReset ? 'Send Reset Link' : isLogin ? 'Log In' : 'Sign Up')}
           </button>
         </form>
         <div class="auth-switch">
-          ${isLogin
-            ? `Don't have an account? <button id="authSwitch">Sign Up</button>`
-            : `Already have an account? <button id="authSwitch">Log In</button>`}
+          ${isReset
+            ? `<button id="authSwitch">Back to Log In</button>`
+            : isLogin
+              ? `Don't have an account? <button id="authSwitch">Sign Up</button>`
+              : `Already have an account? <button id="authSwitch">Log In</button>`}
         </div>
-      </div>
       </div>
     </div>`;
 
   document.getElementById('authForm').addEventListener('submit', onAuthSubmit);
   document.getElementById('authSwitch').addEventListener('click', () => {
-    authState.mode = isLogin ? 'signup' : 'login';
+    authState.mode = isReset ? 'login' : (isLogin ? 'signup' : 'login');
     authState.error = '';
+    authState.info = '';
     renderAuthScreen();
   });
+  const forgotBtn = document.getElementById('authForgot');
+  if (forgotBtn) {
+    forgotBtn.addEventListener('click', () => {
+      authState.mode = 'reset';
+      authState.error = '';
+      authState.info = '';
+      renderAuthScreen();
+    });
+  }
 }
 
 async function onAuthSubmit(evt) {
   evt.preventDefault();
-  const username = document.getElementById('authUsername').value.trim();
-  const password = document.getElementById('authPassword').value;
-  if (!username || !password) return;
+  const email = document.getElementById('authEmail').value.trim();
+  const passwordField = document.getElementById('authPassword');
+  const password = passwordField ? passwordField.value : null;
+  if (!email || (authState.mode !== 'reset' && !password)) return;
 
   authState.busy = true;
   authState.error = '';
+  authState.info = '';
   renderAuthScreen();
 
   try {
     if (authState.mode === 'login') {
-      await logIn(username, password);
+      await logIn(email, password);
+      // onAuthStateChanged in main.js takes over from here.
+    } else if (authState.mode === 'signup') {
+      await signUp(email, password);
+      // onAuthStateChanged in main.js takes over from here.
     } else {
-      await signUp(username, password);
+      await resetPassword(email);
+      authState.busy = false;
+      authState.info = "If an account exists for that email, a reset link is on its way — check your inbox.";
+      renderAuthScreen();
     }
-    // onAuthStateChanged in main.js takes over from here.
   } catch (err) {
     authState.busy = false;
-    authState.error = friendlyAuthError(err);
+    if (authState.mode === 'reset' && err.code === 'auth/user-not-found') {
+      // Don't reveal whether an account exists.
+      authState.info = "If an account exists for that email, a reset link is on its way — check your inbox.";
+    } else {
+      authState.error = friendlyAuthError(err);
+    }
     renderAuthScreen();
   }
 }
 
 export function showAuthScreen() {
+  authState.mode = 'login';
+  authState.error = '';
+  authState.info = '';
   document.getElementById('auth-root').style.display = 'block';
   document.getElementById('app-root').style.display = 'none';
   renderAuthScreen();
