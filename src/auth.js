@@ -7,32 +7,55 @@ export function renderAuthScreen() {
   const isLogin = authState.mode === 'login';
   root.innerHTML = `
     <div class="auth-shell">
+      <div class="auth-visual">
+        <div class="auth-visual-inner">
+          <div class="brand-mark">TM</div>
+          <h1>Run your fleet with total visibility.</h1>
+          <p class="lede">TruckManager keeps every truck, trip, and invoice in one place — synced live across your team.</p>
+          <div class="auth-feature-list">
+            <div class="auth-feature">
+              <div class="dot">&#10003;</div>
+              <div class="txt"><b>Live fleet &amp; trip tracking</b><span>See truck status and border checkpoints update in real time.</span></div>
+            </div>
+            <div class="auth-feature">
+              <div class="dot">&#10003;</div>
+              <div class="txt"><b>Expenses &amp; profit per trip</b><span>Log fuel and dispatch costs, see net profit instantly.</span></div>
+            </div>
+            <div class="auth-feature">
+              <div class="dot">&#10003;</div>
+              <div class="txt"><b>Payments &amp; invoices</b><span>Track what's collected and print client invoices in one click.</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="auth-form-side">
       <div class="auth-card">
-        <div class="auth-brand">
+        <div class="auth-card-brand">
           <div class="brand-mark">TM</div>
           <div><div class="name">TruckManager</div><div class="tag">Fleet &amp; Cross-Border Ops</div></div>
         </div>
-        <h2>${isLogin ? 'Ku soo gal akoonkaaga' : 'Samayso akoon cusub'}</h2>
-        <div class="auth-sub">${isLogin ? 'Geli username-kaaga iyo password-kaaga.' : 'Username iyo password samee si aad u bilowdo.'}</div>
+        <h2>${isLogin ? 'Welcome back' : 'Create your account'}</h2>
+        <div class="auth-sub">${isLogin ? 'Sign in with your username and password.' : 'Choose a username and password to get started.'}</div>
         ${authState.error ? `<div class="auth-error">${authState.error}</div>` : ''}
         <form id="authForm">
           <div class="auth-field">
             <label>Username</label>
-            <input id="authUsername" autocomplete="username" placeholder="tusaale: opsmanager" required>
+            <input id="authUsername" autocomplete="username" placeholder="e.g. opsmanager" required>
           </div>
           <div class="auth-field">
             <label>Password</label>
-            <input id="authPassword" type="password" autocomplete="${isLogin ? 'current-password' : 'new-password'}" placeholder="ugu yaraan 6 xaraf" required>
+            <input id="authPassword" type="password" autocomplete="${isLogin ? 'current-password' : 'new-password'}" placeholder="At least 6 characters" required>
           </div>
           <button class="btn btn-primary auth-submit" type="submit" ${authState.busy ? 'disabled' : ''}>
-            ${authState.busy ? 'Fadlan sug…' : (isLogin ? 'Log In' : 'Sign Up')}
+            ${authState.busy ? 'Please wait…' : (isLogin ? 'Log In' : 'Sign Up')}
           </button>
         </form>
         <div class="auth-switch">
           ${isLogin
-            ? `Akoon ma lihid? <button id="authSwitch">Samayso mid</button>`
-            : `Akoon ma leedahay? <button id="authSwitch">Log In</button>`}
+            ? `Don't have an account? <button id="authSwitch">Sign Up</button>`
+            : `Already have an account? <button id="authSwitch">Log In</button>`}
         </div>
+      </div>
       </div>
     </div>`;
 

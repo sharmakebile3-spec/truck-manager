@@ -70,14 +70,14 @@ export function watchAuth(callback) {
 export function friendlyAuthError(err) {
   const code = err && err.code;
   switch (code) {
-    case 'auth/email-already-in-use': return 'Username-kan horey ayaa loo isticmaalay. Isku day mid kale.';
-    case 'auth/invalid-email': return 'Username sax ah geli (xarfo iyo tirooyin kaliya).';
-    case 'auth/weak-password': return 'Password waa inuu ka koobnaadaa ugu yaraan 6 xaraf.';
+    case 'auth/email-already-in-use': return 'That username is already taken. Try a different one.';
+    case 'auth/invalid-email': return 'Please enter a valid username (letters and numbers only).';
+    case 'auth/weak-password': return 'Password must be at least 6 characters.';
     case 'auth/invalid-credential':
-    case 'auth/wrong-password': return 'Username ama password khaldan.';
-    case 'auth/user-not-found': return 'User-kan lama helin. Hubi username-ka ama isdiiwaangeli.';
-    case 'auth/too-many-requests': return 'Isku day badan oo khaldan ayaa la sameeyay — mar kale isku day wax yar ka dib.';
-    default: return 'Khalad ayaa dhacay: ' + (err && err.message ? err.message : String(err));
+    case 'auth/wrong-password': return 'Incorrect username or password.';
+    case 'auth/user-not-found': return 'No account found with that username. Check it or sign up instead.';
+    case 'auth/too-many-requests': return 'Too many failed attempts — please try again in a moment.';
+    default: return 'Something went wrong: ' + (err && err.message ? err.message : String(err));
   }
 }
 

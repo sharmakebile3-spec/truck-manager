@@ -99,7 +99,7 @@ async function ensurePayment(tripId){
 
 async function submitPaymentEntry(tripId){
   const amt = parseFloat(UI.paymentForm.amount);
-  if(!amt||amt<=0){ alert('Fadlan geli lacag sax ah.'); return; }
+  if(!amt||amt<=0){ alert('Please enter a valid amount.'); return; }
   const p = await ensurePayment(tripId);
   const newPaid = Math.min(p.paidAmount + amt, p.amount);
   const entries = [...(p.entries||[]), {amount:amt, date:todayInput(), note:UI.paymentForm.note.trim()}];
@@ -124,7 +124,7 @@ function setReportTab(t){ UI.reportTab=t; render(); }
 function openInvoice(tripId){ UI.viewInvoiceTripId=tripId; render(); }
 function closeInvoice(){ UI.viewInvoiceTripId=null; render(); }
 async function deletePaymentEntry(tripId, idx){
-  if(!confirm('Ma hubtaa inaad tirtirto payment entry-gan?')) return;
+  if(!confirm('Delete this payment entry?')) return;
   const p = paymentByTripId(tripId);
   if(!p||!p.entries) return;
   const removedAmt = p.entries[idx] ? p.entries[idx].amount : 0;
@@ -265,7 +265,7 @@ function render(){
   if(!currentUser) return;
   const app = document.getElementById('app');
   if(!(loaded.trucks && loaded.trips && loaded.expenses && loaded.payments)){
-    app.innerHTML = '<div class="empty">Xogtaada ayaa soo shubmaysa…</div>';
+    app.innerHTML = '<div class="empty">Loading your data…</div>';
     return;
   }
   renderNav();
@@ -324,7 +324,7 @@ function renderDashboard(){
       <div class="kpi red"><div class="num">${maintenance}</div><div class="lbl">Maintenance</div></div>
     </div>
 
-    ${total===0 ? `<div class="panel"><div class="empty">Weli truck ma diiwaan gelin. Aad <b onclick="setRoute('fleet')" style="cursor:pointer;color:var(--accent);">Fleet Management</b> si aad u bilowdo.</div></div>` : `
+    ${total===0 ? `<div class="panel"><div class="empty">No trucks registered yet. Go to <b onclick="setRoute('fleet')" style="cursor:pointer;color:var(--accent);">Fleet Management</b> to get started.</div></div>` : `
     <div class="grid-2">
       <div class="panel">
         <div class="panel-head"><h2>Trip Status Feed &amp; Live Border Tracking</h2><span class="count">${activeTrips.length} active</span></div>
@@ -398,7 +398,7 @@ function toggleRegisterForm(){ UI.showRegisterForm = !UI.showRegisterForm; rende
 async function submitRegisterTruck(){
   const f = UI.registerForm;
   if(!f.plate.trim() || !f.model.trim() || !f.driverName.trim()){
-    alert('Fadlan buuxi Truck Registration Number, Model, iyo Driver Name.'); return;
+    alert('Please fill in Truck Registration Number, Model, and Driver Name.'); return;
   }
   await addDocWithId(trucksRef(currentUser.uid), {
     plate:f.plate.trim(), model:f.model.trim(),
@@ -418,7 +418,7 @@ async function saveTruckStatus(truckId, newStatus, note){
 function setFleetFilter(f){ UI.fleetFilter=f; render(); }
 function updateFleetSearch(v){ UI.fleetSearch=v; render(); }
 async function deleteTruck(id){
-  if(!confirm('Ma hubtaa inaad tirtirto truck-kan? Xogtiisa trips iyo expenses-na way tirtirmaan.')) return;
+  if(!confirm('Delete this truck? Its trips and expenses will also be deleted.')) return;
   const tripIds = DB.trips.filter(t=>t.truckId===id).map(t=>t.id);
   const jobs = [deleteDocById(trucksRef(currentUser.uid), id)];
   tripIds.forEach(tid=>jobs.push(deleteDocById(tripsRef(currentUser.uid), tid)));
@@ -570,11 +570,11 @@ function removeWizardCheckpoint(i){ UI.wizardCheckpoints.splice(i,1); render(); 
 
 async function submitTrip(){
   const f = UI.wizardForm;
-  if(!f.truckId){ alert('Fadlan dooro Truck (waa inuu ahaadaa mid Available ah).'); return; }
-  if(!f.origin.trim() || !f.destination.trim()){ alert('Fadlan buuxi Origin iyo Destination.'); return; }
-  if(!f.clientName.trim()){ alert('Fadlan geli Client / Customer Name.'); return; }
+  if(!f.truckId){ alert('Please select a Truck (it must be Available).'); return; }
+  if(!f.origin.trim() || !f.destination.trim()){ alert('Please fill in Origin and Destination.'); return; }
+  if(!f.clientName.trim()){ alert('Please enter the Client / Customer Name.'); return; }
   const truck = truckById(f.truckId);
-  if(!truck || truck.status!=='Available'){ alert('Truck-kan Available ma aha hadda.'); return; }
+  if(!truck || truck.status!=='Available'){ alert('This truck is not Available right now.'); return; }
 
   const seq = await nextTripSequence(currentUser.uid);
   const ref = 'TRP-2026-' + pad4(seq);
@@ -643,7 +643,7 @@ function editCheckpoint(tripId, idx){
   render();
 }
 async function deleteCheckpoint(tripId, idx){
-  if(!confirm('Ma hubtaa inaad tirtirto diiwaankan location update-ka?')) return;
+  if(!confirm('Delete this location update?')) return;
   const trip = tripById(tripId);
   const checkpoints = trip.checkpoints.slice();
   checkpoints.splice(idx,1);
@@ -658,7 +658,7 @@ function cancelCheckpointEdit(){ resetCheckpointForm(); render(); }
 async function submitExpense(tripId){
   const f = UI.expenseForm;
   const amt = parseFloat(f.amount);
-  if(!amt || amt<=0){ alert('Fadlan geli qiimo ($) oo sax ah.'); return; }
+  if(!amt || amt<=0){ alert('Please enter a valid amount ($).'); return; }
   const record = {
     tripId, category:f.category, subtype:f.subtype||'',
     amount:amt, liters: f.liters?parseFloat(f.liters):null, station:f.station.trim(), receipt:f.receipt.trim()
@@ -679,7 +679,7 @@ function editExpense(id){
   render();
 }
 async function deleteExpense(id){
-  if(!confirm('Ma hubtaa inaad tirtirto kharashkan?')) return;
+  if(!confirm('Delete this expense?')) return;
   await deleteDocById(expensesRef(currentUser.uid), id);
   if(UI.expenseEditId===id) resetExpenseForm();
   render();
