@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="so">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TruckManager — Fleet &amp; Cross-Border Trip Console</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div id="auth-root"></div>
+
+<div id="app-root" style="display:none;">
+  <div class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">TM</div>
+      <div><div class="name">TruckManager</div><div class="tag">Fleet &amp; Cross-Border Ops</div></div>
+    </div>
+    <div class="nav" id="navList"></div>
+    <div class="sidebar-foot" id="sidebarFoot">Signed in as<br><b id="sidebarUser">—</b><br>All figures shown in USD ($)
+      <div><button class="logout-btn" id="logoutBtn">Log Out</button></div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="topbar">
+      <span class="tb-label"><span class="pulse"></span>Live — synced to your Firebase account</span>
+      <div class="avatar" id="topAvatar">—</div>
+    </div>
+    <div class="view" id="app"></div>
+  </div>
+</div>
+
+<div id="invoice-overlay" style="display:none;"></div>
+<div id="invoice-print-frame" style="display:none;"></div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
