@@ -7,10 +7,11 @@ Fleet &amp; cross-border trip management console — trucks, trips, checkpoints,
 1. Go to the [Firebase console](https://console.firebase.google.com/) → create a project (or use an existing one).
 2. **Authentication** → Sign-in method → enable **Email/Password**.
    (The app signs users up with their real email + password, so Firebase's built-in "Forgot password" reset email works out of the box.)
-3. **Firestore Database** → Create database → start in production mode.
-4. Firestore → Rules tab → paste the contents of [`firestore.rules`](firestore.rules) from this repo → Publish.
+3. **Authentication** → Sign-in method → enable **Google** → set a project support email when prompted. This powers the "Continue with Google" button.
+4. **Firestore Database** → Create database → start in production mode.
+5. Firestore → Rules tab → paste the contents of [`firestore.rules`](firestore.rules) from this repo → Publish.
    This restricts every user to only read/write their own data at `users/{uid}/...`.
-5. Project settings (gear icon) → General → "Your apps" → Add app → Web (`</>`) → register the app → copy the `firebaseConfig` values.
+6. Project settings (gear icon) → General → "Your apps" → Add app → Web (`</>`) → register the app → copy the `firebaseConfig` values.
 
 ## 2. Local setup
 
@@ -45,6 +46,10 @@ npm run dev
 3. Add the same six `VITE_FIREBASE_*` variables under Project Settings → Environment Variables.
 4. Deploy.
 5. Back in the Firebase console → Authentication → Settings → **Authorized domains** → add your `*.vercel.app` domain (and any custom domain), otherwise sign-in will be blocked from the deployed site.
+
+## Installing as an app (PWA)
+
+TruckManager is a Progressive Web App — on the deployed site, desktop Chrome/Edge shows an **install icon** in the address bar (and mobile browsers offer "Add to Home Screen"). Installing gives it its own window/icon, launched without browser tabs, and works offline for pages already visited.
 
 ## Data model (Firestore)
 

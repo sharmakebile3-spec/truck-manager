@@ -1,4 +1,6 @@
-import { signUp, logIn, resetPassword, friendlyAuthError } from './firebase.js';
+import { signUp, logIn, resetPassword, signInWithGoogle, friendlyAuthError } from './firebase.js';
+
+const GOOGLE_ICON = `<svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.1 8 3.1l5.7-5.7C34.5 6.1 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.1 8 3.1l5.7-5.7C34.5 6.1 29.5 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.4 0 10.3-2.1 14-5.5l-6.5-5.5c-2 1.5-4.6 2.5-7.5 2.5-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.6 39.6 16.3 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.5 5.5C39.9 36.9 44 31 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>`;
 
 const authState = { mode: 'login', error: '', info: '', busy: false };
 
@@ -24,6 +26,11 @@ export function renderAuthScreen() {
         <div class="auth-sub">${sub}</div>
         ${authState.error ? `<div class="auth-error">${authState.error}</div>` : ''}
         ${authState.info ? `<div class="auth-info">${authState.info}</div>` : ''}
+        ${!isReset ? `
+        <button type="button" class="btn btn-google" id="authGoogle" ${authState.busy ? 'disabled' : ''}>
+          ${GOOGLE_ICON} Continue with Google
+        </button>
+        <div class="auth-divider"><span>or</span></div>` : ''}
         <form id="authForm">
           <div class="auth-field">
             <label>Email</label>
@@ -64,6 +71,25 @@ export function renderAuthScreen() {
       authState.info = '';
       renderAuthScreen();
     });
+  }
+  const googleBtn = document.getElementById('authGoogle');
+  if (googleBtn) {
+    googleBtn.addEventListener('click', onGoogleSignIn);
+  }
+}
+
+async function onGoogleSignIn() {
+  authState.busy = true;
+  authState.error = '';
+  authState.info = '';
+  renderAuthScreen();
+  try {
+    await signInWithGoogle();
+    // onAuthStateChanged in main.js takes over from here.
+  } catch (err) {
+    authState.busy = false;
+    authState.error = friendlyAuthError(err);
+    renderAuthScreen();
   }
 }
 

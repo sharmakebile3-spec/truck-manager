@@ -6,7 +6,9 @@ import {
   sendPasswordResetEmail,
   signOut,
   onAuthStateChanged,
-  updateProfile
+  updateProfile,
+  GoogleAuthProvider,
+  signInWithPopup
 } from 'firebase/auth';
 import {
   getFirestore,
@@ -53,6 +55,12 @@ export function resetPassword(email) {
   return sendPasswordResetEmail(auth, email.trim());
 }
 
+const googleProvider = new GoogleAuthProvider();
+export async function signInWithGoogle() {
+  const cred = await signInWithPopup(auth, googleProvider);
+  return cred.user;
+}
+
 export function logOut() {
   return signOut(auth);
 }
@@ -75,6 +83,10 @@ export function friendlyAuthError(err) {
     case 'auth/wrong-password': return 'Incorrect email or password.';
     case 'auth/user-not-found': return 'No account found with that email. Check it or sign up instead.';
     case 'auth/too-many-requests': return 'Too many failed attempts — please try again in a moment.';
+    case 'auth/popup-closed-by-user': return '';
+    case 'auth/cancelled-popup-request': return '';
+    case 'auth/popup-blocked': return 'Your browser blocked the sign-in popup — please allow popups for this site and try again.';
+    case 'auth/account-exists-with-different-credential': return 'That email is already used with a different sign-in method (e.g. email/password). Try logging in that way instead.';
     default: return 'Something went wrong: ' + (err && err.message ? err.message : String(err));
   }
 }
