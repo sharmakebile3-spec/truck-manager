@@ -103,6 +103,7 @@ export function trucksRef(uid) { return userCollection(uid, 'trucks'); }
 export function tripsRef(uid) { return userCollection(uid, 'trips'); }
 export function expensesRef(uid) { return userCollection(uid, 'expenses'); }
 export function paymentsRef(uid) { return userCollection(uid, 'payments'); }
+export function expenseTypesRef(uid) { return userCollection(uid, 'expenseTypes'); }
 
 export function listenCollection(ref, cb) {
   const q = query(ref, orderBy('createdAt', 'asc'));
@@ -145,4 +146,20 @@ export function listenTripCounter(uid, cb) {
   return onSnapshot(counterDoc, snap => {
     cb(snap.exists() ? (snap.data().nextTripSeq || 1) : 1);
   });
+}
+
+/* =========================================================
+   LICENSING
+   A signed-in user only gets data access once an admin creates
+   a doc at licenses/{their-lowercased-email} in the Firebase
+   Console (see firestore.rules). listenLicense reports live
+   whether that doc exists, so access unlocks/locks automatically.
+========================================================= */
+export function listenLicense(email, cb) {
+  const ref = doc(db, 'licenses', email.trim().toLowerCase());
+  return onSnapshot(
+    ref,
+    snap => cb(snap.exists(), snap.exists() ? snap.data() : null),
+    () => cb(false, null)
+  );
 }

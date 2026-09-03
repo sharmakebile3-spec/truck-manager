@@ -1,8 +1,28 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function normalizedEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    // Licensing: a signed-in user only gets access to their own data
+    // once an admin manually creates a doc at licenses/{their-email}
+    // in the Firebase Console. Nobody can grant themselves a license
+    // from the app (allow write: if false) — it's admin-only.
+    function isLicensed() {
+      return request.auth != null &&
+             request.auth.token.email != null &&
+             exists(/databases/$(database)/documents/licenses/$(normalizedEmail()));
+    }
+
+    match /licenses/{email} {
+      allow read: if request.auth != null && normalizedEmail() == email;
+      allow write: if false;
+    }
+
     match /users/{uid}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read, write: if request.auth != null && request.auth.uid == uid && isLicensed();
     }
   }
 }

@@ -1,5 +1,5 @@
 import {
-  trucksRef, tripsRef, expensesRef, paymentsRef,
+  trucksRef, tripsRef, expensesRef, paymentsRef, expenseTypesRef,
   listenCollection, addDocWithId, updateDocById, deleteDocById,
   nextTripSequence, listenTripCounter, updateDisplayName
 } from './firebase.js';
@@ -8,11 +8,12 @@ import { getTheme, applyTheme } from './theme.js';
 /* =========================================================
    DATA MODEL (populated live from Firestore, see initApp)
 ========================================================= */
-const DB = { trucks: [], trips: [], expenses: [], payments: [] };
+const DB = { trucks: [], trips: [], expenses: [], payments: [], expenseTypes: [] };
 let currentUser = null;
 let unsubscribers = [];
 let nextSeqPreview = 1;
-const loaded = { trucks: false, trips: false, expenses: false, payments: false };
+let expenseTypesSeeded = false;
+const loaded = { trucks: false, trips: false, expenses: false, payments: false, expenseTypes: false };
 
 /* =========================================================
    UI STATE
@@ -21,17 +22,18 @@ const UI = {
   route:'dashboard',
   profileTruckId:null, profileTab:'current',
   showRegisterForm:false,
-  registerForm:{plate:'',model:'',trailer1:'',trailer2:'',driverName:'',driverId:'',driverPhone:'',status:'Available',maintenanceNote:''},
+  registerForm:{plate:'',model:'',trailer1:'',trailer2:'',driverName:'',driverId:'',driverPhone:'',status:'Available',maintenanceNote:'',truckType:'Company'},
   fleetFilter:'all', fleetSearch:'', editingTruckId:null,
   showWizard:false,
-  wizardForm:{truckId:'',clientName:'',origin:'',destination:'',cargoDesc:'',cargoTons:'',freightRate:'',departureDate:'',estDelivery:''},
+  wizardForm:{truckId:'',clientName:'',origin:'',destination:'',cargoDesc:'',cargoTons:'',ratePerTon:'',freightRate:'',departureDate:'',estDelivery:''},
   wizardCheckpoints:[], newCheckpointName:'',
   tripsSearch:'', tripsFilter:'all',
   expandedTripId:null,
   checkpointForm:{location:'',status:'Departed',notes:'',date:'',issueType:''},
   checkpointEditIdx:null,
-  expenseForm:{category:'Fuel',subtype:'',amount:'',liters:'',station:'',receipt:''},
+  expenseForm:{category:'Fuel',subtype:'',amount:'',liters:'',station:'',receipt:'',notes:''},
   expenseEditId:null,
+  manageTypesFor:null, newTypeLabel:'', editingTypeId:null, editingTypeLabel:'',
   paymentFilter:'all', viewInvoiceTripId:null,
   paymentForm:{tripId:null, amount:'', note:''},
   reportTab:'fleet',
@@ -39,8 +41,14 @@ const UI = {
 };
 
 const CHECKPOINT_STATUSES = ['Departed','Arrived at Border','In Customs Clearance','Border Cleared','In Transit','Delayed / Issue','Delivered'];
-const DISPATCH_SUBTYPES = ['Driver Allowance','Toll Gates & Border Fees','Loading / Unloading'];
-const OTHER_SUBTYPES = ['Maintenance / Repairs','Fines / Police Clearance','Miscellaneous'];
+const DEFAULT_EXPENSE_TYPES = [
+  {category:'Dispatch', label:'Driver Allowance'},
+  {category:'Dispatch', label:'Toll Gates & Border Fees'},
+  {category:'Dispatch', label:'Loading / Unloading'},
+  {category:'Other', label:'Maintenance / Repairs'},
+  {category:'Other', label:'Fines / Police Clearance'},
+  {category:'Other', label:'Miscellaneous'}
+];
 const ISSUE_TYPES = ['Mechanical Breakdown','Truck Held / Detained (Police, Customs, Roadblock)','Accident','Other Issue'];
 const COMMON_LOCATIONS = ['Ndola','Lusaka','Kitwe','Livingstone','Solwezi','Kazungula Border','Chirundu Border','Nakonde Border','Tunduma Border','Beitbridge Border','Harare','Beira Corridor','Beira Port','Johannesburg','Kolwezi (DRC)','Lubumbashi (DRC)','Nairobi','Dar es Salaam','Mutare'];
 
@@ -273,7 +281,7 @@ function setProfileTab(tab){ UI.profileTab=tab; render(); }
 function render(){
   if(!currentUser) return;
   const app = document.getElementById('app');
-  if(!(loaded.trucks && loaded.trips && loaded.expenses && loaded.payments)){
+  if(!(loaded.trucks && loaded.trips && loaded.expenses && loaded.payments && loaded.expenseTypes)){
     app.innerHTML = '<div class="empty">Loading your data…</div>';
     return;
   }
@@ -414,14 +422,18 @@ async function submitRegisterTruck(){
     plate:f.plate.trim(), model:f.model.trim(),
     trailer1:f.trailer1.trim()||'—', trailer2:f.trailer2.trim()||'—',
     driverName:f.driverName.trim(), driverId:f.driverId.trim()||'—', driverPhone:f.driverPhone.trim()||'—',
-    status:f.status, maintenanceNote: f.status==='Maintenance' ? (f.maintenanceNote||'') : ''
+    status:f.status, maintenanceNote: f.status==='Maintenance' ? (f.maintenanceNote||'') : '',
+    truckType: f.truckType==='Subcontract' ? 'Subcontract' : 'Company'
   });
-  UI.registerForm = {plate:'',model:'',trailer1:'',trailer2:'',driverName:'',driverId:'',driverPhone:'',status:'Available',maintenanceNote:''};
+  UI.registerForm = {plate:'',model:'',trailer1:'',trailer2:'',driverName:'',driverId:'',driverPhone:'',status:'Available',maintenanceNote:'',truckType:'Company'};
   UI.showRegisterForm = false;
   render();
 }
-async function saveTruckStatus(truckId, newStatus, note){
-  await updateDocById(trucksRef(currentUser.uid), truckId, {status:newStatus, maintenanceNote: newStatus==='Maintenance' ? (note||'') : ''});
+async function saveTruckStatus(truckId, newStatus, note, truckType){
+  await updateDocById(trucksRef(currentUser.uid), truckId, {
+    status:newStatus, maintenanceNote: newStatus==='Maintenance' ? (note||'') : '',
+    truckType: truckType==='Subcontract' ? 'Subcontract' : 'Company'
+  });
   UI.editingTruckId = null;
   render();
 }
@@ -499,6 +511,16 @@ function renderFleet(){
           </select>
         </div>
       </div>
+      <div class="field-row">
+        <div class="field"><label>Truck Type</label>
+          <select onchange="UI.registerForm.truckType=this.value">
+            <option ${f.truckType==='Company'?'selected':''}>Company</option>
+            <option ${f.truckType==='Subcontract'?'selected':''}>Subcontract</option>
+          </select>
+          <div class="hint">Subcontract trucks are owned by someone else but managed by you — trips on these trucks can log a Commission expense.</div>
+        </div>
+        <div></div>
+      </div>
       <div class="divider"></div>
       <button class="btn btn-primary" onclick="submitRegisterTruck()">Save Truck</button>
     </div>` : ''}
@@ -521,7 +543,10 @@ function renderFleet(){
         <div class="truck-card ${isEditing?'editing':''}">
           <div class="truck-card-top" onclick="${isEditing?'':`openProfile('${t.id}')`}">
             <div><div class="plate">${esc(t.plate)}</div><div class="model">${esc(t.model)}</div></div>
-            <span class="badge ${statusColorClass(t.status)}">${t.status}</span>
+            <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+              <span class="badge ${statusColorClass(t.status)}">${t.status}</span>
+              ${t.truckType==='Subcontract' ? '<span class="badge blue">Subcontract</span>' : ''}
+            </div>
           </div>
           <div class="truck-meta">
             <div><b>Driver:</b> ${esc(t.driverName)}</div>
@@ -544,8 +569,15 @@ function renderFleet(){
               <label>Maintenance Issue (describe what is wrong)</label>
               <textarea id="editTruckNote_${t.id}" rows="3" placeholder="e.g. Front brake pads worn out, gearbox oil leak...">${esc(t.maintenanceNote)}</textarea>
             </div>
+            <div class="field" style="margin-bottom:10px;">
+              <label>Truck Type</label>
+              <select id="editTruckType_${t.id}">
+                <option ${t.truckType!=='Subcontract'?'selected':''}>Company</option>
+                <option ${t.truckType==='Subcontract'?'selected':''}>Subcontract</option>
+              </select>
+            </div>
             <div style="display:flex;gap:8px;">
-              <button class="btn btn-primary btn-sm" onclick="saveTruckStatus('${t.id}', document.getElementById('editTruckStatus_${t.id}').value, document.getElementById('editTruckNote_${t.id}').value)">Save</button>
+              <button class="btn btn-primary btn-sm" onclick="saveTruckStatus('${t.id}', document.getElementById('editTruckStatus_${t.id}').value, document.getElementById('editTruckNote_${t.id}').value, document.getElementById('editTruckType_${t.id}').value)">Save</button>
               <button class="btn btn-ghost btn-sm" onclick="UI.editingTruckId=null; render();">Cancel</button>
             </div>
           </div>` : `
@@ -563,6 +595,17 @@ function renderFleet(){
    TRIPS
 ========================================================= */
 function toggleWizard(){ UI.showWizard = !UI.showWizard; render(); }
+function recalcFreightFromRate(){
+  const tons = parseFloat(UI.wizardForm.cargoTons);
+  const rate = parseFloat(UI.wizardForm.ratePerTon);
+  if(!isNaN(tons) && !isNaN(rate) && tons>0 && rate>0){
+    UI.wizardForm.freightRate = String(Math.round(tons*rate*100)/100);
+    const freightInput = document.getElementById('wizardFreightRate');
+    if(freightInput) freightInput.value = UI.wizardForm.freightRate;
+  }
+}
+function onCargoTonsChange(val){ UI.wizardForm.cargoTons=val; recalcFreightFromRate(); }
+function onRatePerTonChange(val){ UI.wizardForm.ratePerTon=val; recalcFreightFromRate(); }
 function onWizardTruckChange(val){ UI.wizardForm.truckId = val; render(); }
 function addWizardCheckpoint(){
   const name = UI.newCheckpointName.trim();
@@ -593,6 +636,7 @@ async function submitTrip(){
     ref, truckId: truck.id, clientName: f.clientName.trim(),
     origin: f.origin.trim(), destination: f.destination.trim(),
     cargoDesc: f.cargoDesc.trim() || '—', cargoTons: parseFloat(f.cargoTons)||0,
+    ratePerTon: parseFloat(f.ratePerTon)||0,
     freightRevenue: parseFloat(f.freightRate)||0,
     departureDate: f.departureDate || todayInput(), estDelivery: f.estDelivery || '',
     routePlan,
@@ -603,7 +647,7 @@ async function submitTrip(){
   await updateDocById(trucksRef(currentUser.uid), truck.id, {status:'On-Trip'});
   await addDocWithId(paymentsRef(currentUser.uid), {tripId, amount:tripData.freightRevenue, paidAmount:0, status:'Unpaid', invoiceDate:'', notes:'', entries:[]});
 
-  UI.wizardForm = {truckId:'',clientName:'',origin:'',destination:'',cargoDesc:'',cargoTons:'',freightRate:'',departureDate:'',estDelivery:''};
+  UI.wizardForm = {truckId:'',clientName:'',origin:'',destination:'',cargoDesc:'',cargoTons:'',ratePerTon:'',freightRate:'',departureDate:'',estDelivery:''};
   UI.wizardCheckpoints = [];
   UI.showWizard = false;
   UI.expandedTripId = tripId;
@@ -617,9 +661,88 @@ function toggleTripExpand(id){
   render();
 }
 function resetCheckpointForm(){ UI.checkpointForm = {location:'', status:'Departed', notes:'', date:'', issueType:''}; UI.checkpointEditIdx = null; }
-function resetExpenseForm(){ UI.expenseForm = {category:'Fuel', subtype:'', amount:'', liters:'', station:'', receipt:''}; UI.expenseEditId = null; }
-function onExpenseCategoryChange(val){ UI.expenseForm.category=val; UI.expenseForm.subtype=''; render(); }
+function resetExpenseForm(){ UI.expenseForm = {category:'Fuel', subtype:'', amount:'', liters:'', station:'', receipt:'', notes:''}; UI.expenseEditId = null; UI.manageTypesFor = null; }
+function onExpenseCategoryChange(val, tripId){
+  UI.expenseForm.category = val;
+  UI.expenseForm.subtype = '';
+  UI.expenseForm.notes = '';
+  if(val==='Commission'){
+    const trip = tripById(tripId);
+    if(trip) UI.expenseForm.amount = String(Math.round(trip.freightRevenue * 0.10 * 100) / 100);
+  }
+  render();
+}
 function onCheckpointStatusChange(val){ UI.checkpointForm.status=val; if(val!=='Delayed / Issue') UI.checkpointForm.issueType=''; render(); }
+
+/* Manageable expense Type lists (Dispatch / Other), stored in Firestore
+   so users can add/edit/delete their own options from the expense form. */
+function toggleManageTypes(category){
+  UI.manageTypesFor = UI.manageTypesFor===category ? null : category;
+  UI.newTypeLabel = '';
+  UI.editingTypeId = null;
+  render();
+}
+async function addExpenseType(category){
+  const label = UI.newTypeLabel.trim();
+  if(!label) return;
+  await addDocWithId(expenseTypesRef(currentUser.uid), {category, label});
+  UI.newTypeLabel = '';
+  render();
+}
+function startEditType(id){
+  const t = DB.expenseTypes.find(x=>x.id===id);
+  if(!t) return;
+  UI.editingTypeId = id;
+  UI.editingTypeLabel = t.label;
+  render();
+}
+function cancelEditType(){ UI.editingTypeId = null; render(); }
+async function saveEditType(id){
+  const label = UI.editingTypeLabel.trim();
+  if(!label) return;
+  await updateDocById(expenseTypesRef(currentUser.uid), id, {label});
+  UI.editingTypeId = null;
+  render();
+}
+async function deleteExpenseType(id){
+  if(!confirm('Delete this type? Existing expenses keep their recorded text, but it will no longer appear in the dropdown.')) return;
+  await deleteDocById(expenseTypesRef(currentUser.uid), id);
+  render();
+}
+function renderTypeSelect(category, ef){
+  const types = DB.expenseTypes.filter(t=>t.category===category);
+  const isManaging = UI.manageTypesFor===category;
+  return `
+    <div class="field" style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <label>Type</label>
+        <button type="button" class="icon-btn" onclick="toggleManageTypes('${category}')">${isManaging ? 'Done' : 'Manage'}</button>
+      </div>
+      <select onchange="UI.expenseForm.subtype=this.value; render();">
+        <option value="">— select —</option>
+        ${types.map(t=>`<option ${ef.subtype===t.label?'selected':''}>${esc(t.label)}</option>`).join('')}
+      </select>
+      ${isManaging ? `
+      <div class="type-manager">
+        ${types.length===0 ? '<div class="hint">No types yet — add one below.</div>' : types.map(t=>`
+          <div class="type-manager-row">
+            ${UI.editingTypeId===t.id ? `
+              <input value="${esc(UI.editingTypeLabel)}" oninput="UI.editingTypeLabel=this.value">
+              <button type="button" class="icon-btn" onclick="saveEditType('${t.id}')">Save</button>
+              <button type="button" class="icon-btn" onclick="cancelEditType()">Cancel</button>
+            ` : `
+              <span>${esc(t.label)}</span>
+              <button type="button" class="icon-btn" onclick="startEditType('${t.id}')">Edit</button>
+              <button type="button" class="icon-btn danger" onclick="deleteExpenseType('${t.id}')">Delete</button>
+            `}
+          </div>`).join('')}
+        <div class="type-manager-add">
+          <input value="${esc(UI.newTypeLabel)}" oninput="UI.newTypeLabel=this.value" placeholder="New type name">
+          <button type="button" class="btn btn-ghost btn-sm" onclick="addExpenseType('${category}')">+ Add</button>
+        </div>
+      </div>` : ''}
+    </div>`;
+}
 
 async function submitCheckpoint(tripId){
   const trip = tripById(tripId);
@@ -671,7 +794,8 @@ async function submitExpense(tripId){
   if(!amt || amt<=0){ alert('Please enter a valid amount ($).'); return; }
   const record = {
     tripId, category:f.category, subtype:f.subtype||'',
-    amount:amt, liters: f.liters?parseFloat(f.liters):null, station:f.station.trim(), receipt:f.receipt.trim()
+    amount:amt, liters: f.liters?parseFloat(f.liters):null, station:f.station.trim(), receipt:f.receipt.trim(),
+    notes: f.category==='Other' ? (f.notes||'').trim() : ''
   };
   if(UI.expenseEditId!==null && UI.expenseEditId!==undefined){
     await updateDocById(expensesRef(currentUser.uid), UI.expenseEditId, record);
@@ -684,7 +808,7 @@ async function submitExpense(tripId){
 }
 function editExpense(id){
   const e = DB.expenses.find(x=>x.id===id);
-  UI.expenseForm = {category:e.category, subtype:e.subtype||'', amount:String(e.amount), liters:e.liters?String(e.liters):'', station:e.station||'', receipt:e.receipt||''};
+  UI.expenseForm = {category:e.category, subtype:e.subtype||'', amount:String(e.amount), liters:e.liters?String(e.liters):'', station:e.station||'', receipt:e.receipt||'', notes:e.notes||''};
   UI.expenseEditId = id;
   render();
 }
@@ -778,8 +902,12 @@ function renderTrips(){
         <div class="field"><label>Cargo Description</label><input value="${esc(wf.cargoDesc)}" oninput="UI.wizardForm.cargoDesc=this.value" placeholder="e.g. Copper Cathodes"></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>Cargo Weight (Tons)</label><input type="number" value="${esc(wf.cargoTons)}" oninput="UI.wizardForm.cargoTons=this.value" placeholder="e.g. 34"></div>
-        <div class="field"><label>Freight Rate ($ USD) *</label><input type="number" value="${esc(wf.freightRate)}" oninput="UI.wizardForm.freightRate=this.value" placeholder="e.g. 5200"><div class="hint">This becomes the invoice amount sent to the client.</div></div>
+        <div class="field"><label>Cargo Weight (Tons)</label><input type="number" value="${esc(wf.cargoTons)}" oninput="onCargoTonsChange(this.value)" placeholder="e.g. 34"></div>
+        <div class="field"><label>Rate per Ton ($)</label><input type="number" value="${esc(wf.ratePerTon)}" oninput="onRatePerTonChange(this.value)" placeholder="e.g. 150"><div class="hint">Freight Rate below auto-fills as Rate × Tons.</div></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Freight Rate ($ USD) *</label><input id="wizardFreightRate" type="number" value="${esc(wf.freightRate)}" oninput="UI.wizardForm.freightRate=this.value" placeholder="e.g. 5200"><div class="hint">Auto-calculated from Rate × Tons — you can still adjust it manually.</div></div>
+        <div></div>
       </div>
       <div class="field-row">
         <div class="field"><label>Departure Date</label><input type="date" value="${esc(wf.departureDate)}" oninput="UI.wizardForm.departureDate=this.value"></div>
@@ -877,16 +1005,17 @@ function renderTripRow(trip){
 
       <div class="detail-card">
         <h3><span class="step-num">2</span>Expenses on this trip</h3>
-        <div class="expense-cats">
+        <div class="expense-cats" style="${truck && truck.truckType==='Subcontract' ? 'grid-template-columns:repeat(4,1fr);' : ''}">
           <div class="exp-cat"><div class="lbl">Dispatch</div><div class="val">${fmt$(tripExpenses(trip.id).filter(e=>e.category==='Dispatch').reduce((s,e)=>s+e.amount,0))}</div></div>
           <div class="exp-cat"><div class="lbl">Fuel</div><div class="val">${fmt$(tripExpenses(trip.id).filter(e=>e.category==='Fuel').reduce((s,e)=>s+e.amount,0))}</div></div>
           <div class="exp-cat"><div class="lbl">Other</div><div class="val">${fmt$(tripExpenses(trip.id).filter(e=>e.category==='Other').reduce((s,e)=>s+e.amount,0))}</div></div>
+          ${truck && truck.truckType==='Subcontract' ? `<div class="exp-cat"><div class="lbl">Commission</div><div class="val">${fmt$(tripExpenses(trip.id).filter(e=>e.category==='Commission').reduce((s,e)=>s+e.amount,0))}</div></div>` : ''}
         </div>
         <table>
           <thead><tr><th>Category</th><th>Detail</th><th>Amount</th><th></th></tr></thead>
           <tbody>
             ${tripExpenses(trip.id).length===0?'<tr><td colspan="4" style="color:var(--ink-soft);">No expenses logged yet — add the first one below.</td></tr>':tripExpenses(trip.id).map(e=>`
-              <tr><td>${e.category}</td><td>${esc(e.subtype)||(e.station?esc(e.station)+' · '+e.liters+'L · '+esc(e.receipt):'—')}</td><td>${fmt$(e.amount)}</td>
+              <tr><td>${e.category}</td><td>${esc(e.subtype)||(e.station?esc(e.station)+' · '+e.liters+'L · '+esc(e.receipt):'—')}${e.notes?' — '+esc(e.notes):''}</td><td>${fmt$(e.amount)}</td>
               <td class="row-actions"><button class="icon-btn" onclick="editExpense('${e.id}')" title="Edit">Edit</button><button class="icon-btn danger" onclick="deleteExpense('${e.id}')" title="Delete">Delete</button></td></tr>
             `).join('')}
           </tbody>
@@ -896,34 +1025,26 @@ function renderTripRow(trip){
         <div class="form-hint" style="margin-bottom:14px;">${UI.expenseEditId!==null ? 'Editing an existing expense — change what you need and Save.' : "Pick a category — the form below adjusts to ask only what's relevant."}</div>
         <div class="field-row">
           <div class="field"><label>Category</label>
-            <select onchange="onExpenseCategoryChange(this.value)">
+            <select onchange="onExpenseCategoryChange(this.value, '${trip.id}')">
               <option ${ef.category==='Dispatch'?'selected':''}>Dispatch</option>
               <option ${ef.category==='Fuel'?'selected':''}>Fuel</option>
               <option ${ef.category==='Other'?'selected':''}>Other</option>
+              ${truck && truck.truckType==='Subcontract' ? `<option ${ef.category==='Commission'?'selected':''}>Commission</option>` : ''}
             </select>
           </div>
           <div class="field"><label>Amount ($ USD) *</label><input type="number" value="${esc(ef.amount)}" oninput="UI.expenseForm.amount=this.value" placeholder="e.g. 80"></div>
         </div>
-        ${ef.category==='Dispatch' ? `
-        <div class="field" style="margin-bottom:16px;"><label>Type</label>
-          <select onchange="UI.expenseForm.subtype=this.value">
-            <option value="">— select —</option>
-            ${DISPATCH_SUBTYPES.map(s=>`<option ${ef.subtype===s?'selected':''}>${s}</option>`).join('')}
-          </select>
-        </div>` : ''}
+        ${ef.category==='Dispatch' ? renderTypeSelect('Dispatch', ef) : ''}
         ${ef.category==='Fuel' ? `
         <div class="field-row">
           <div class="field"><label>Fuel Quantity (Liters)</label><input type="number" value="${esc(ef.liters)}" oninput="UI.expenseForm.liters=this.value" placeholder="e.g. 420"></div>
           <div class="field"><label>Fuel Station Name</label><input value="${esc(ef.station)}" oninput="UI.expenseForm.station=this.value" placeholder="e.g. Chirundu Fuel Stop"></div>
         </div>
         <div class="field" style="margin-bottom:16px;"><label>Receipt Number</label><input value="${esc(ef.receipt)}" oninput="UI.expenseForm.receipt=this.value" placeholder="e.g. FS-2291"></div>` : ''}
-        ${ef.category==='Other' ? `
-        <div class="field" style="margin-bottom:16px;"><label>Type</label>
-          <select onchange="UI.expenseForm.subtype=this.value">
-            <option value="">— select —</option>
-            ${OTHER_SUBTYPES.map(s=>`<option ${ef.subtype===s?'selected':''}>${s}</option>`).join('')}
-          </select>
-        </div>` : ''}
+        ${ef.category==='Other' ? renderTypeSelect('Other', ef) : ''}
+        ${ef.category==='Other' && ef.subtype ? `
+        <div class="field" style="margin-bottom:16px;"><label>Notes — what happened?</label><textarea rows="2" oninput="UI.expenseForm.notes=this.value" placeholder="e.g. Front brake pads worn out, replaced at Ndola workshop">${esc(ef.notes)}</textarea></div>` : ''}
+        ${ef.category==='Commission' ? `<div class="hint" style="margin-bottom:16px;">Auto-filled as 10% of this trip's Freight Rate — adjust if needed.</div>` : ''}
         <div style="display:flex;gap:10px;">
           <button class="btn btn-primary" onclick="submitExpense('${trip.id}')">${UI.expenseEditId!==null ? 'Save Changes' : 'Add Expense'}</button>
           ${UI.expenseEditId!==null ? `<button class="btn btn-ghost" onclick="cancelExpenseEdit()">Cancel</button>` : ''}
@@ -1393,20 +1514,32 @@ function renderSettings(){
 /* =========================================================
    APP LIFECYCLE (called from main.js on auth state changes)
 ========================================================= */
+async function seedDefaultExpenseTypes(){
+  for(const t of DEFAULT_EXPENSE_TYPES){
+    await addDocWithId(expenseTypesRef(currentUser.uid), t);
+  }
+}
+
 export function initApp(user){
   currentUser = user;
   const displayName = user.displayName || (user.email ? user.email.split('@')[0] : 'User');
   document.getElementById('topbarUserName').textContent = displayName;
   document.getElementById('topAvatar').textContent = displayName.slice(0,2).toUpperCase();
 
-  DB.trucks = []; DB.trips = []; DB.expenses = []; DB.payments = [];
-  loaded.trucks = loaded.trips = loaded.expenses = loaded.payments = false;
+  DB.trucks = []; DB.trips = []; DB.expenses = []; DB.payments = []; DB.expenseTypes = [];
+  loaded.trucks = loaded.trips = loaded.expenses = loaded.payments = loaded.expenseTypes = false;
+  expenseTypesSeeded = false;
   UI.route = 'dashboard'; UI.profileTruckId = null; UI.expandedTripId = null;
 
   unsubscribers.push(listenCollection(trucksRef(user.uid), rows => { DB.trucks = rows; loaded.trucks = true; render(); }));
   unsubscribers.push(listenCollection(tripsRef(user.uid), rows => { DB.trips = rows; loaded.trips = true; render(); }));
   unsubscribers.push(listenCollection(expensesRef(user.uid), rows => { DB.expenses = rows; loaded.expenses = true; render(); }));
   unsubscribers.push(listenCollection(paymentsRef(user.uid), rows => { DB.payments = rows; loaded.payments = true; render(); }));
+  unsubscribers.push(listenCollection(expenseTypesRef(user.uid), rows => {
+    DB.expenseTypes = rows; loaded.expenseTypes = true;
+    if(rows.length===0 && !expenseTypesSeeded){ expenseTypesSeeded = true; seedDefaultExpenseTypes(); }
+    render();
+  }));
   unsubscribers.push(listenTripCounter(user.uid, seq => { nextSeqPreview = seq; if(UI.route==='trips') render(); }));
 
   render();
@@ -1423,8 +1556,10 @@ Object.assign(window, {
   UI, render, setRoute, openProfile, setProfileTab,
   toggleRegisterForm, submitRegisterTruck, setFleetFilter, updateFleetSearch, saveTruckStatus, deleteTruck,
   toggleWizard, onWizardTruckChange, addWizardCheckpoint, removeWizardCheckpoint, handleCpNameKeydown, submitTrip,
+  onCargoTonsChange, onRatePerTonChange,
   updateTripsSearch, setTripsFilter, toggleTripExpand, editCheckpoint, deleteCheckpoint, onCheckpointStatusChange,
   submitCheckpoint, cancelCheckpointEdit, onExpenseCategoryChange, submitExpense, editExpense, deleteExpense, cancelExpenseEdit,
+  toggleManageTypes, addExpenseType, startEditType, cancelEditType, saveEditType, deleteExpenseType,
   exportFleetCSV, exportTripsCSV, exportPaymentsCSV, setPaymentFilter, openInvoice, closeInvoice, printInvoice,
   setPaymentStatus, deletePaymentEntry, submitPaymentEntry, setReportTab,
   saveDisplayName, setTheme
