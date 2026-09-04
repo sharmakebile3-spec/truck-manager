@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TruckManager — Fleet &amp; Cross-Border Trip Console</title>
+<meta name="description" content="TruckManager keeps every truck, trip, and invoice in one place — cross-border trip tracking, expenses, subcontractor commission, and payments, synced live across your team." />
 <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 <link rel="apple-touch-icon" href="/icon-192.png" />
 <meta name="theme-color" content="#2563EB" />
@@ -12,13 +13,14 @@
 </head>
 <body>
 
-<div id="auth-root"></div>
+<div id="landing-root"></div>
+<div id="auth-root" style="display:none;"></div>
 <div id="pending-root" style="display:none;"></div>
 
 <div id="app-root" style="display:none;">
   <div class="sidebar">
     <div class="brand">
-      <div class="brand-mark">TM</div>
+      <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><rect x="1" y="7" width="14" height="9"/><path d="M15 11h4l3 3v2h-7"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg></div>
       <div><div class="name">TruckManager</div><div class="tag">Fleet &amp; Cross-Border Ops</div></div>
     </div>
     <div class="nav" id="navList"></div>

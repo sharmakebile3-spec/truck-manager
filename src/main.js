@@ -3,6 +3,7 @@ import { watchAuth, logOut, listenLicense } from './firebase.js';
 import { showAuthScreen, hideAuthScreen } from './auth.js';
 import { initApp, teardownApp } from './app.js';
 import { showPendingScreen, hidePendingScreen } from './license.js';
+import { showLandingScreen, hideLandingScreen } from './landing.js';
 import { initTheme } from './theme.js';
 
 // Paused: turn back on once firestore.rules (license gate) is published
@@ -19,10 +20,16 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
 let unsubLicense = null;
 let appInitialized = false;
 
+function goToLogin() {
+  hideLandingScreen();
+  showAuthScreen();
+}
+
 watchAuth(user => {
   if (unsubLicense) { unsubLicense(); unsubLicense = null; }
 
   if (user) {
+    hideLandingScreen();
     hideAuthScreen();
     document.getElementById('pending-root').style.display = 'none';
 
@@ -52,6 +59,6 @@ watchAuth(user => {
   } else {
     teardownApp();
     appInitialized = false;
-    showAuthScreen();
+    showLandingScreen(goToLogin);
   }
 });

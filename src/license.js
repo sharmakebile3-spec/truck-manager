@@ -13,7 +13,7 @@ export function showPendingScreen(user) {
     <div class="auth-shell">
       <div class="auth-card">
         <div class="auth-card-brand">
-          <div class="brand-mark">TM</div>
+          <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><rect x="1" y="7" width="14" height="9"/><path d="M15 11h4l3 3v2h-7"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg></div>
           <div><div class="name">TruckManager</div><div class="tag">Fleet &amp; Cross-Border Ops</div></div>
         </div>
         <h2>Account pending activation</h2>
