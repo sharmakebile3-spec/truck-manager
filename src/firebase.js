@@ -1,14 +1,14 @@
 import { initializeApp } from 'firebase/app';
 import {
   getAuth,
-  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
   signOut,
   onAuthStateChanged,
   updateProfile,
-  GoogleAuthProvider,
-  signInWithPopup
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider
 } from 'firebase/auth';
 import {
   getFirestore,
@@ -41,11 +41,6 @@ export const db = getFirestore(app);
 /* =========================================================
    EMAIL-BASED AUTH
 ========================================================= */
-export async function signUp(email, password) {
-  const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
-  return cred.user;
-}
-
 export async function logIn(email, password) {
   const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
   return cred.user;
@@ -55,18 +50,18 @@ export function resetPassword(email) {
   return sendPasswordResetEmail(auth, email.trim());
 }
 
-const googleProvider = new GoogleAuthProvider();
-export async function signInWithGoogle() {
-  const cred = await signInWithPopup(auth, googleProvider);
-  return cred.user;
-}
-
 export function logOut() {
   return signOut(auth);
 }
 
 export function updateDisplayName(user, displayName) {
   return updateProfile(user, { displayName: displayName.trim() });
+}
+
+export async function changePassword(user, currentPassword, newPassword) {
+  const cred = EmailAuthProvider.credential(user.email, currentPassword);
+  await reauthenticateWithCredential(user, cred);
+  await updatePassword(user, newPassword);
 }
 
 export function watchAuth(callback) {
@@ -81,12 +76,9 @@ export function friendlyAuthError(err) {
     case 'auth/weak-password': return 'Password must be at least 6 characters.';
     case 'auth/invalid-credential':
     case 'auth/wrong-password': return 'Incorrect email or password.';
-    case 'auth/user-not-found': return 'No account found with that email. Check it or sign up instead.';
+    case 'auth/user-not-found': return 'No account found with that email. Please contact us to get access.';
     case 'auth/too-many-requests': return 'Too many failed attempts — please try again in a moment.';
-    case 'auth/popup-closed-by-user': return '';
-    case 'auth/cancelled-popup-request': return '';
-    case 'auth/popup-blocked': return 'Your browser blocked the sign-in popup — please allow popups for this site and try again.';
-    case 'auth/account-exists-with-different-credential': return 'That email is already used with a different sign-in method (e.g. email/password). Try logging in that way instead.';
+    case 'auth/requires-recent-login': return 'For security, please log out and log back in before changing your password.';
     default: return 'Something went wrong: ' + (err && err.message ? err.message : String(err));
   }
 }

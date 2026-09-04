@@ -1,7 +1,7 @@
 import {
   trucksRef, tripsRef, expensesRef, paymentsRef, expenseTypesRef,
   listenCollection, addDocWithId, updateDocById, deleteDocById,
-  nextTripSequence, listenTripCounter, updateDisplayName
+  nextTripSequence, listenTripCounter, updateDisplayName, changePassword, friendlyAuthError
 } from './firebase.js';
 import { getTheme, applyTheme } from './theme.js';
 
@@ -37,7 +37,8 @@ const UI = {
   paymentFilter:'all', viewInvoiceTripId:null,
   paymentForm:{tripId:null, amount:'', note:''},
   reportTab:'fleet',
-  settingsDisplayName:'', settingsSaved:false
+  settingsDisplayName:'', settingsSaved:false,
+  passwordForm:{current:'', next:'', confirm:''}, passwordError:'', passwordSaved:false, passwordBusy:false
 };
 
 const CHECKPOINT_STATUSES = ['Departed','Arrived at Border','In Customs Clearance','Border Cleared','In Transit','Delayed / Issue','Delivered'];
@@ -1470,6 +1471,29 @@ function setTheme(theme){
   render();
 }
 
+async function savePassword(){
+  const f = UI.passwordForm;
+  UI.passwordError = '';
+  UI.passwordSaved = false;
+  if(!f.current || !f.next || !f.confirm){ UI.passwordError = 'Please fill in all three fields.'; render(); return; }
+  if(f.next.length < 6){ UI.passwordError = 'New password must be at least 6 characters.'; render(); return; }
+  if(f.next !== f.confirm){ UI.passwordError = 'New password and confirmation do not match.'; render(); return; }
+
+  UI.passwordBusy = true;
+  render();
+  try{
+    await changePassword(currentUser, f.current, f.next);
+    UI.passwordForm = {current:'', next:'', confirm:''};
+    UI.passwordSaved = true;
+  }catch(err){
+    UI.passwordError = err.code==='auth/wrong-password' || err.code==='auth/invalid-credential'
+      ? 'Your current password is incorrect.'
+      : friendlyAuthError(err);
+  }
+  UI.passwordBusy = false;
+  render();
+}
+
 function renderSettings(){
   const email = currentUser.email || '—';
   const theme = getTheme();
@@ -1493,6 +1517,26 @@ function renderSettings(){
         <button class="btn btn-primary btn-sm" onclick="saveDisplayName()">Save Changes</button>
         ${UI.settingsSaved ? '<span style="font-size:12.5px;color:var(--green);font-weight:600;">Saved ✓</span>' : ''}
       </div>
+    </div>
+
+    <div class="form-card" style="max-width:560px;">
+      <h3>Change Password</h3>
+      <div class="form-hint">Update the password you were given when your account was set up.</div>
+      ${UI.passwordError ? `<div class="auth-error" style="margin-bottom:16px;">${esc(UI.passwordError)}</div>` : ''}
+      ${UI.passwordSaved ? `<div class="auth-info" style="margin-bottom:16px;">Password updated ✓</div>` : ''}
+      <div class="field" style="margin-bottom:14px;max-width:320px;">
+        <label>Current Password</label>
+        <input type="password" value="${esc(UI.passwordForm.current)}" oninput="UI.passwordForm.current=this.value" autocomplete="current-password">
+      </div>
+      <div class="field" style="margin-bottom:14px;max-width:320px;">
+        <label>New Password</label>
+        <input type="password" value="${esc(UI.passwordForm.next)}" oninput="UI.passwordForm.next=this.value" autocomplete="new-password">
+      </div>
+      <div class="field" style="margin-bottom:8px;max-width:320px;">
+        <label>Confirm New Password</label>
+        <input type="password" value="${esc(UI.passwordForm.confirm)}" oninput="UI.passwordForm.confirm=this.value" autocomplete="new-password">
+      </div>
+      <button class="btn btn-primary btn-sm" style="margin-top:8px;" onclick="savePassword()" ${UI.passwordBusy?'disabled':''}>${UI.passwordBusy?'Saving…':'Update Password'}</button>
     </div>
 
     <div class="form-card" style="max-width:560px;">
@@ -1562,5 +1606,5 @@ Object.assign(window, {
   toggleManageTypes, addExpenseType, startEditType, cancelEditType, saveEditType, deleteExpenseType,
   exportFleetCSV, exportTripsCSV, exportPaymentsCSV, setPaymentFilter, openInvoice, closeInvoice, printInvoice,
   setPaymentStatus, deletePaymentEntry, submitPaymentEntry, setReportTab,
-  saveDisplayName, setTheme
+  saveDisplayName, setTheme, savePassword
 });
