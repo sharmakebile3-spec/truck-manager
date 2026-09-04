@@ -26,7 +26,7 @@ function miniSidebar(active) {
 function dashboardMockup() {
   return `
   <div class="browser-mockup reveal">
-    <div class="browser-mockup-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><div class="browser-mockup-url">truckmanager.app/dashboard</div></div>
+    <div class="browser-mockup-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><div class="browser-mockup-url">truck-manger.com/dashboard</div></div>
     <div class="browser-mockup-body" style="display:flex;gap:16px;">
       ${miniSidebar('Dashboard')}
       <div class="mini-app-body">
@@ -61,7 +61,7 @@ function dashboardMockup() {
 function tripMockup() {
   return `
   <div class="browser-mockup reveal">
-    <div class="browser-mockup-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><div class="browser-mockup-url">truckmanager.app/trips</div></div>
+    <div class="browser-mockup-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><div class="browser-mockup-url">truck-manger.com/trips</div></div>
     <div class="browser-mockup-body">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
         <div><span class="trip-id" style="font-size:10px;">TRP-2026-0003</span> · <b style="font-size:11.5px;">BAZ 4471</b></div>
@@ -86,7 +86,7 @@ function tripMockup() {
 function paymentsMockup() {
   return `
   <div class="browser-mockup reveal">
-    <div class="browser-mockup-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><div class="browser-mockup-url">truckmanager.app/payments</div></div>
+    <div class="browser-mockup-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><div class="browser-mockup-url">truck-manger.com/payments</div></div>
     <div class="browser-mockup-body">
       <div class="kpi-row" style="grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">
         <div class="kpi total" style="padding:10px 12px;"><div class="num" style="font-size:16px;">$13,700</div><div class="lbl" style="font-size:8.5px;">Total Invoiced</div></div>

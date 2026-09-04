@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://truck-manager-xx85.vercel.app/sitemap.xml
+Sitemap: https://truck-manger.com/sitemap.xml
