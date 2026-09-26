@@ -667,6 +667,26 @@ function toggleTripExpand(id){
   resetExpenseForm();
   render();
 }
+async function deleteTrip(tripId){
+  if(!confirm('Delete this trip? Its expenses and payment record will also be deleted. This cannot be undone.')) return;
+  const trip = tripById(tripId);
+  const jobs = [deleteDocById(tripsRef(currentUser.uid), tripId)];
+  DB.expenses.filter(e=>e.tripId===tripId).forEach(e=>jobs.push(deleteDocById(expensesRef(currentUser.uid), e.id)));
+  const payment = paymentByTripId(tripId);
+  if(payment) jobs.push(deleteDocById(paymentsRef(currentUser.uid), payment.id));
+  await Promise.all(jobs);
+
+  if(trip && trip.status!=='Delivered'){
+    const stillActive = DB.trips.some(t=>t.id!==tripId && t.truckId===trip.truckId && t.status!=='Delivered');
+    const truck = truckById(trip.truckId);
+    if(!stillActive && truck && truck.status==='On-Trip'){
+      await updateDocById(trucksRef(currentUser.uid), trip.truckId, {status:'Available'});
+    }
+  }
+
+  if(UI.expandedTripId===tripId) UI.expandedTripId=null;
+  render();
+}
 function resetCheckpointForm(){ UI.checkpointForm = {location:'', status:'Departed', notes:'', date:'', issueType:''}; UI.checkpointEditIdx = null; }
 function resetExpenseForm(){ UI.expenseForm = {category:'Fuel', subtype:'', amount:'', liters:'', station:'', receipt:'', notes:''}; UI.expenseEditId = null; UI.manageTypesFor = null; }
 function onExpenseCategoryChange(val, tripId){
@@ -955,6 +975,7 @@ function renderTripRow(trip){
         <span class="badge ${statusColorClass(trip.status)}">${trip.status}</span>
         <button class="btn btn-ghost btn-sm" onclick="openClientUpdate('${trip.id}')">✉ Send Update</button>
         <button class="btn btn-ghost btn-sm" onclick="toggleTripExpand('${trip.id}')">${expanded?'Hide':'Manage Trip'}</button>
+        <button class="btn btn-danger-outline btn-sm" onclick="deleteTrip('${trip.id}')">Delete</button>
       </div>
     </div>
     ${buildRouteTrack(trip)}
@@ -1719,5 +1740,5 @@ Object.assign(window, {
   exportFleetCSV, exportTripsCSV, exportPaymentsCSV, setPaymentFilter, openInvoice, closeInvoice, printInvoice,
   setPaymentStatus, deletePaymentEntry, submitPaymentEntry, setReportTab,
   saveDisplayName, setTheme, savePassword,
-  openClientUpdate, closeClientUpdate, copyClientUpdateText, emailClientUpdate
+  openClientUpdate, closeClientUpdate, copyClientUpdateText, emailClientUpdate, deleteTrip
 });
