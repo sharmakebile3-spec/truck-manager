@@ -34,7 +34,7 @@ const UI = {
   expenseForm:{category:'Fuel',subtype:'',amount:'',liters:'',station:'',receipt:'',notes:''},
   expenseEditId:null,
   manageTypesFor:null, newTypeLabel:'', editingTypeId:null, editingTypeLabel:'',
-  paymentFilter:'all', viewInvoiceTripId:null,
+  paymentFilter:'all', viewInvoiceTripId:null, viewClientUpdateTripId:null, updateCopyState:'idle',
   paymentForm:{tripId:null, amount:'', note:''},
   reportTab:'fleet',
   settingsDisplayName:'', settingsSaved:false,
@@ -134,6 +134,8 @@ function setPaymentFilter(f){ UI.paymentFilter=f; render(); }
 function setReportTab(t){ UI.reportTab=t; render(); }
 function openInvoice(tripId){ UI.viewInvoiceTripId=tripId; render(); }
 function closeInvoice(){ UI.viewInvoiceTripId=null; render(); }
+function openClientUpdate(tripId){ UI.viewClientUpdateTripId=tripId; UI.updateCopyState='idle'; render(); }
+function closeClientUpdate(){ UI.viewClientUpdateTripId=null; render(); }
 async function deletePaymentEntry(tripId, idx){
   if(!confirm('Delete this payment entry?')) return;
   const p = paymentByTripId(tripId);
@@ -299,6 +301,10 @@ function render(){
   if(overlay){
     if(UI.viewInvoiceTripId){
       overlay.innerHTML = renderInvoiceModal(UI.viewInvoiceTripId);
+      overlay.style.display = 'flex';
+      document.body.style.overflow = 'hidden';
+    } else if(UI.viewClientUpdateTripId){
+      overlay.innerHTML = renderClientUpdateModal(UI.viewClientUpdateTripId);
       overlay.style.display = 'flex';
       document.body.style.overflow = 'hidden';
     } else {
@@ -947,6 +953,7 @@ function renderTripRow(trip){
       <div><span class="trip-id">${trip.ref}</span> · <b>${truck?truck.plate:'—'}</b> · ${esc(trip.origin)} &rarr; ${esc(trip.destination)} · ${esc(trip.cargoDesc)}, ${trip.cargoTons}t</div>
       <div style="display:flex;gap:8px;align-items:center;">
         <span class="badge ${statusColorClass(trip.status)}">${trip.status}</span>
+        <button class="btn btn-ghost btn-sm" onclick="openClientUpdate('${trip.id}')">✉ Send Update</button>
         <button class="btn btn-ghost btn-sm" onclick="toggleTripExpand('${trip.id}')">${expanded?'Hide':'Manage Trip'}</button>
       </div>
     </div>
@@ -1342,6 +1349,111 @@ function renderInvoiceModal(tripId){
 }
 
 /* =========================================================
+   CLIENT UPDATE (manually copy/email to the customer)
+========================================================= */
+function buildClientUpdateText(trip){
+  const lines = [];
+  lines.push(`TRIP UPDATE — ${trip.ref}`);
+  lines.push('');
+  lines.push(`Client: ${trip.clientName || '—'}`);
+  lines.push(`Route: ${trip.origin} -> ${trip.destination}`);
+  lines.push(`Cargo: ${trip.cargoDesc}, ${trip.cargoTons}t`);
+  lines.push(`Current Status: ${trip.status}`);
+  lines.push('');
+  lines.push('Journey so far:');
+  trip.checkpoints.forEach(c=>{
+    lines.push(`- ${c.location} - ${c.status} (${fmtDateTime(c.timestamp)})`);
+    if(c.notes) lines.push(`  ${c.notes}`);
+  });
+  lines.push('');
+  lines.push(trip.status==='Delivered' ? 'This shipment has been delivered. Thank you for your business.' : 'We will keep you updated as the shipment progresses.');
+  lines.push('');
+  lines.push('TruckManager — Fleet & Cross-Border Ops');
+  return lines.join('\n');
+}
+async function copyClientUpdateText(tripId){
+  const trip = tripById(tripId);
+  if(!trip) return;
+  const text = buildClientUpdateText(trip);
+  try{
+    await navigator.clipboard.writeText(text);
+    UI.updateCopyState = 'copied';
+  }catch(err){
+    UI.updateCopyState = 'error';
+  }
+  render();
+  setTimeout(()=>{ UI.updateCopyState='idle'; render(); }, 2500);
+}
+function emailClientUpdate(tripId){
+  const trip = tripById(tripId);
+  if(!trip) return;
+  const subject = encodeURIComponent(`Trip Update — ${trip.ref}${trip.clientName?' ('+trip.clientName+')':''}`);
+  const body = encodeURIComponent(buildClientUpdateText(trip));
+  window.open(`mailto:?subject=${subject}&body=${body}`, '_self');
+}
+
+function renderClientUpdateModal(tripId){
+  const trip = tripById(tripId);
+  if(!trip) return '';
+  const truck = truckById(trip.truckId);
+  const checkpoints = trip.checkpoints;
+  const copyLabel = UI.updateCopyState==='copied' ? 'Copied ✓' : UI.updateCopyState==='error' ? 'Copy failed' : 'Copy as Text';
+  return `
+  <div class="invoice-box">
+    <button class="invoice-close-btn no-print" onclick="closeClientUpdate()">✕ Close</button>
+    <div class="no-print" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;padding-right:60px;flex-wrap:wrap;gap:10px;">
+      <h2 style="font-size:17px;">Client Update — ${trip.ref}</h2>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost btn-sm" onclick="copyClientUpdateText('${tripId}')">${copyLabel}</button>
+        <button class="btn btn-primary btn-sm" onclick="emailClientUpdate('${tripId}')">✉ Open in Email</button>
+      </div>
+    </div>
+    <div class="invoice-content">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;">
+        <div><div style="font-size:20px;font-weight:800;">TruckManager</div><div style="font-size:12px;color:var(--ink-soft);">Fleet &amp; Cross-Border Logistics</div></div>
+        <div style="text-align:right;"><div style="font-size:20px;font-weight:800;color:var(--accent);">TRIP UPDATE</div><div class="mono" style="color:var(--ink-soft);">${trip.ref}</div><div style="font-size:12px;color:var(--ink-soft);">Date: ${fmtDate(todayInput())}</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px;">
+        <div style="background:var(--surface);border-radius:8px;padding:12px 14px;">
+          <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:6px;">Client</div>
+          <div style="font-size:16px;font-weight:700;">${esc(trip.clientName||'—')}</div>
+        </div>
+        <div style="background:var(--surface);border-radius:8px;padding:12px 14px;font-size:12.5px;">
+          <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:6px;">Shipment Details</div>
+          <div><b>Route:</b> ${esc(trip.origin)} → ${esc(trip.destination)}</div>
+          <div><b>Cargo:</b> ${esc(trip.cargoDesc)}, ${trip.cargoTons}t</div>
+          <div><b>Truck:</b> ${truck?truck.plate:'—'} (${truck?truck.model:'—'})</div>
+          <div><b>Driver:</b> ${truck?truck.driverName:'—'}</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;background:${trip.status==='Delivered'?'var(--green-tint)':'var(--blue-tint)'};border-radius:8px;padding:12px 16px;margin-bottom:22px;">
+        <span style="font-weight:600;font-size:13.5px;">Current Status</span>
+        <span class="badge ${statusColorClass(trip.status)}">${trip.status}</span>
+      </div>
+      <div style="font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);margin-bottom:14px;">Journey So Far</div>
+      <div>
+        ${checkpoints.map((c,i)=>`
+        <div style="display:flex;gap:12px;">
+          <div style="display:flex;flex-direction:column;align-items:center;">
+            <div style="width:11px;height:11px;border-radius:50%;background:${i===checkpoints.length-1?'var(--accent)':'var(--green)'};flex-shrink:0;margin-top:3px;"></div>
+            ${i<checkpoints.length-1?'<div style="width:2px;flex:1;background:var(--line);min-height:26px;"></div>':''}
+          </div>
+          <div style="padding-bottom:18px;flex:1;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+              <b style="font-size:13.5px;">${esc(c.location)}</b>
+              <span class="badge ${statusColorClass(c.status)}" style="font-size:10.5px;">${c.status}</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--ink-soft);margin-top:2px;">${fmtDateTime(c.timestamp)}</div>
+            ${c.notes?`<div style="font-size:12.5px;color:var(--ink);margin-top:4px;">${esc(c.notes)}</div>`:''}
+          </div>
+        </div>`).join('')}
+      </div>
+      <div style="margin-top:8px;text-align:center;font-size:11.5px;color:var(--ink-soft);">${trip.status==='Delivered' ? 'This shipment has been delivered. Thank you for your business.' : 'We will keep you updated as the shipment progresses.'}</div>
+    </div>
+  </div>`;
+}
+
+/* =========================================================
    REPORTS MODULE
 ========================================================= */
 function renderReports(){
@@ -1606,5 +1718,6 @@ Object.assign(window, {
   toggleManageTypes, addExpenseType, startEditType, cancelEditType, saveEditType, deleteExpenseType,
   exportFleetCSV, exportTripsCSV, exportPaymentsCSV, setPaymentFilter, openInvoice, closeInvoice, printInvoice,
   setPaymentStatus, deletePaymentEntry, submitPaymentEntry, setReportTab,
-  saveDisplayName, setTheme, savePassword
+  saveDisplayName, setTheme, savePassword,
+  openClientUpdate, closeClientUpdate, copyClientUpdateText, emailClientUpdate
 });
