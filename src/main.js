@@ -5,6 +5,21 @@ import { initApp, teardownApp } from './app.js';
 import { showPendingScreen, hidePendingScreen } from './license.js';
 import { showLandingScreen, hideLandingScreen } from './landing.js';
 import { initTheme } from './theme.js';
+import { registerSW } from 'virtual:pwa-register';
+
+// With registerType 'autoUpdate' the page reloads itself as soon as a new
+// version takes over, so every push reaches open tabs without a manual
+// refresh. Check for a new version every minute and when the tab regains focus.
+registerSW({
+  immediate: true,
+  onRegisteredSW(_url, reg) {
+    if (!reg) return;
+    setInterval(() => reg.update(), 60 * 1000);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update();
+    });
+  }
+});
 
 // Paused: turn back on once firestore.rules (license gate) is published
 // in the Firebase Console and the first admin account is licensed.
