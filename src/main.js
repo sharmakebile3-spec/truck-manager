@@ -10,6 +10,11 @@ import { initTheme } from './theme.js';
 // in the Firebase Console and the first admin account is licensed.
 const LICENSE_GATE_ENABLED = false;
 
+// Global pause: while true, every signed-in user sees the "can't access"
+// screen instead of the app. Data is untouched. Set to false and redeploy
+// to reopen the app for everyone.
+const APP_PAUSED = true;
+
 initTheme();
 
 document.getElementById('logoutBtn').addEventListener('click', () => {
@@ -32,6 +37,15 @@ watchAuth(user => {
     hideLandingScreen();
     hideAuthScreen();
     document.getElementById('pending-root').style.display = 'none';
+
+    if (APP_PAUSED) {
+      if (appInitialized) {
+        teardownApp();
+        appInitialized = false;
+      }
+      showPendingScreen(user);
+      return;
+    }
 
     if (!LICENSE_GATE_ENABLED) {
       if (!appInitialized) {

@@ -16,9 +16,8 @@ export function showPendingScreen(user) {
           <div class="brand-mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><rect x="1" y="7" width="14" height="9"/><path d="M15 11h4l3 3v2h-7"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg></div>
           <div><div class="name">TruckManager</div><div class="tag">Fleet &amp; Cross-Border Ops</div></div>
         </div>
-        <h2>Account pending activation</h2>
-        <div class="auth-sub">Your account is created, but not activated yet.</div>
-        <div class="auth-info">Signed in as <b>${esc(user.email)}</b>. Contact us to activate your TruckManager subscription — this page will unlock automatically as soon as it's activated, no need to log in again.</div>
+        <h2>Sorry, you can't access this account</h2>
+        <div class="auth-error">Your free plan limit has ended and you no longer have database limit. Please contact us.</div>
         <button class="btn btn-ghost auth-submit" id="pendingLogout">Log Out</button>
       </div>
     </div>`;
